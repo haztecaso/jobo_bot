@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """
 TODO
-- Gestión de errores: Logs, Probar a enviar de nuevo eventos no enviados
+- Probar a enviar de nuevo eventos no enviados
 - Backups del historial
-- Limpiar y refactorizar código
 - Editar mensajes cuando se agotan las entradas
 - Versión con retraso
 - Base de datos con sqlite
@@ -21,7 +20,9 @@ from tinydb import TinyDB, Query
 import telegram
 from telegram.utils.helpers import escape_markdown
 
-TESTING = True
+logging.getLogger('telegram').setLevel(logging.WARNING)
+
+LOGGING_FORMAT = '%(asctime)s:%(levelname)s:%(process)d:%(message)s'
 
 BASE_URL   = "https://madridcultura-jobo.shop.secutix.com"
 LOGIN_URL  = f"{BASE_URL}/account/login"
@@ -34,167 +35,301 @@ BOT_TOKEN = "1749715587:AAH626inXY9mDxNHYiiIII8Rz5RoYBhgsrM"
 CHAT_ID_TEST = "1624473"
 CHAT_ID_PROD = "-1001391859850"
 
+DB = TinyDB('database.json')
+
 MSG_COUNT = 0
 
-def clean(string):
-    string = string.replace('\n', '').replace('\r', '').split()
-    string = ' '.join(string)
-    return string
+
+class JoboClient():
+    def __init__(self, username:str, password: str):
+        self.username = username
+        self.password = password
+        self.session = requests.session()
+        self.token = None
+        self.login()
+
+    def get_token(self):
+        logging.debug("Getting csrf token")
+        result = self.session.get(LOGIN_URL)
+        soup = BeautifulSoup(result.text, 'html.parser')
+        self.token = soup.find('input', {'name': '_csrf'}).get('value')
+
+    def login(self):
+        if not self.token:
+            self.get_token()
+        logging.debug("Logging in")
+        payload = {
+                'login': self.username,
+                'password': self.password,
+                '_rememberThisLogin': 'on',
+                '_csrf': self.token
+                }
+        result = self.session.post(LOGIN_URL, data=payload, headers=dict(referer=LOGIN_URL))
+
+    def get_events_raw(self):
+        logging.debug("Getting events")
+        return self.session.get(EVENTS_URL, headers = dict(referer=EVENTS_URL)).text
 
 
-def get_token():
-    logging.debug("getting csrf token")
-    session = requests.session()
-    result = session.get(LOGIN_URL)
-    soup = BeautifulSoup(result.text, 'html.parser')
-    token = soup.find('input', {'name': '_csrf'}).get('value')
-    return (token, session)
+class Event:
+    def __init__(self, **data):
+        self.data = data
+        self.sent = False
 
 
-def login(username:str, password:str):
-    token, session = get_token()
-    logging.debug("logging in")
-    payload = {
-            'login': username,
-            'password': password,
-            '_rememberThisLogin': 'on',
-            '_csrf': token
-            }
-    result = session.post(LOGIN_URL, data=payload, headers=dict(referer=LOGIN_URL))
-    return (result, session)
+    def db_search(self):
+        global DB
+        result = DB.search(
+                (Query().title == self.get('title'))
+                & (Query().date == self.get('date'))
+                )
+        return result[0] if result else result
+
+    def db_diff(self):
+        db_result = self.db_search()
+        if 'message_id' in db_result:
+            del db_result['message_id']
+        return not self.data == dict(db_result)
+
+    def db_insert(self):
+        global DB
+        if not self.db_search():
+            DB.insert(self.data)
+
+    def db_update(self):
+        global DB
+        DB.update(self.data,
+                (Query().title == self.get('title'))
+                & (Query().date == self.get('date'))
+                )
+
+    def get(self, key, escape_markdown = False):
+        value = self.data[key]
+        if escape_markdown:
+            for char in "_*[]()~`>#+-=|{}.!":
+                value = value.replace(char, '\\'+char)
+        return value
+
+    @property
+    def message_id(self):
+        if 'message_id' in self.data:
+            return self.data['message_id']
+        else:
+            message_id = dict(self.db_search()).get('message_id', None)
+            if message_id:
+                self.data['message_id'] = message_id
+            return message_id
+
+    @message_id.setter
+    def message_id(self, message_id):
+        self.data['message_id'] = message_id
+
+    @message_id.deleter
+    def message_id(self):
+        del data['message_id']
+    
+    def __repr__(self):
+        return f"{self.get('title')} - {self.get('date')}"
+
+    def __hash__(self):
+        return hash(str(self)+self.get('date'))
+
+    def message(self):
+        message  = f"*{self.get('title', True)}* \- "
+        message += f"{self.get('site', True)}\n"
+        message += f"_{self.get('date', True)}_\n"
+        message += self._message_info() + "\n"
+        message += self._message_buy()
+        return message
+
+    def _message_info(self):
+        url = self.get('info_url')
+        if url:
+            message = f"[Más información]({url})"
+        else:
+            message  = "Buscar información "
+            url  = "https://www.madridcultura.es/resultado/filtro?&texto="
+            url += urllib.parse.quote(f"{self.get('title')}")
+            message += f"en [madridcultura\.es]({url}) o "
+            url  = "https://duckduckgo.com/?q="
+            url += urllib.parse.quote(f"{self.get('title')} - {self.get('site')}")
+            message  += f"en [duckduckgo\.com]({url})"
+        return message
+
+    def _message_buy(self):
+        url = self.get('buy_url')
+        return f"[Consigue tu entrada]({url})" if url else "*¡Entradas agotadas\!*"
 
 
-def select_event(event, selector):
-    return clean(event.select(selector)[0].text)
+class EventScraper:
+    def __init__(self, event_soup):
+        self.soup = event_soup
+        self.event = None
+        self.scrape()
+
+    def scrape(self):
+        self.event = Event(
+                id = self._scrape_id(),
+                title = self._scrape_title(),
+                space = self._scrape_space(),
+                site = self._scrape_site(),
+                date = self._scrape_date(),
+                img = self._scrape_img(),
+                info_url = self._scrape_info_url(),
+                buy_url = self._scrape_buy_url(),
+                )
+
+    def _scrape_selector(self, selector):
+        result = self.soup.select(selector)
+        if result:
+            result = result[0].text
+            result = result.replace('\n','').replace('\r','')
+            result = ' '.join(result.split())
+        return result
+
+    def _scrape_attribute(self, selector, attribute):
+        result = self.soup.select(selector)
+        if result:
+            result = result[0].get(attribute)
+        return result
+
+    def _scrape_href(self, selector):
+        return self._scrape_attribute(selector, 'href')
+
+    def _scrape_id(self):
+        return self.soup.get('id').replace('prod_','')
+ 
+    def _scrape_title(self):
+        return self._scrape_selector('.title')
+
+    def _scrape_space(self):
+        return self._scrape_selector('.location .space')
+
+    def _scrape_site(self):
+        return self._scrape_selector('.location .site')
+
+    def _scrape_date(self):
+        date = self._scrape_selector('.date .unique')
+        if not date:
+            date = self._scrape_selector('.date .range')
+        return date
+
+    def _scrape_img(self):
+        return self._scrape_attribute('img', 'data-img-large')
+
+    def _scrape_info_url(self):
+        return self._scrape_href('.more_info a')
+
+    def _scrape_buy_url(self):
+        rel_url = self._scrape_href('span.button a')
+        url = BASE_URL+str(rel_url) if rel_url else None
+        return url
 
 
-def scrape_event(event):
-    title = select_event(event, '.title')
-    space = select_event(event, '.location .space')
-    site = select_event(event, '.location .site')
-    date = None
-
-    if event.select('.date .unique'):
-        date = select_event(event, '.date .unique')
-    elif event.select('.date .range'):
-        date = select_event(event, '.date .range')
-
-    img = None
-    if event.select('img'):
-        img = event.select('img')[0].get('data-img-large')
-
-    info_url = None
-    if event.select('.more_info a'):
-        info_url = event.select('.more_info a')[0].get('href')
-
-    buy_url = None
-    if event.select('span.button a'):
-        buy_url = BASE_URL+event.select('span.button a')[0].get('href')
-    return {
-            'title'      : title,
-            'space'      : space,
-            'site'       : site,
-            'date'       : date,
-            'img'        : img,
-            'info_url'   : info_url,
-            'buy_url'    : buy_url,
-            'sent'       : False,
-            'added_time' : time(),
-            'hash'       : hash(title+space+site+date)
-            }
-
-
-def scrape_events(session):
-    logging.debug("scraping events")
-    result = session.get(EVENTS_URL, headers = dict(referer = EVENTS_URL))
-    soup = BeautifulSoup(result.text, 'html.parser')
+def scrape_events(html:str):
+    soup = BeautifulSoup(html, 'html.parser')
     events = []
-    for ev in soup.select('div.group_content > ul > li > div.product'):
-        logging.debug(f"scraping event nº{len(events)}")
-        events.append(scrape_event(ev))
+    events_raw = soup.select('div.group_content > ul > li > div.product')
+    logging.debug(f"{len(events_raw)} events found")
+    for event_raw in events_raw:
+        event = EventScraper(event_raw).event
+        logging.debug(f"Scraped event: {event}")
+        events.append(event)
     return events
 
 
-def esc(message):
-    for char in "_*[]()~`>#+-=|{}.!":
-        message = message.replace(char, '\\'+char)
-    return message
+class JoboBot():
+    def __init__(self, token, chat_id):
+        self.token = token
+        self.chat_id = chat_id
+        self.bot = telegram.Bot(token=self.token)
+        self.msg_count = 0
 
-
-def markdown_message(event):
-    message  = f"*{esc(event['title'])}* \- {esc(event['site'])}\n"
-    message += f"_{esc(event['date'])}_\n"
-    if event['info_url']:
-        message += f"[Más información]({event['info_url']})\n"
-    else:
-        info_url  = "https://www.madridcultura.es/resultado/filtro?&texto="
-        info_url += urllib.parse.quote(f"{event['title']}")
-        message  += f"Buscar información: en [madridcultura\.es]({info_url}) o "
-        info_url  = "https://duckduckgo.com/?q="
-        info_url += urllib.parse.quote(f"{event['title']} - {event['site']}")
-        message  += f"en [duckduckgo\.com]({info_url})\n"
-    if event['buy_url']:
-        message += f"[Consigue tu entrada]({event['buy_url']})"
-    else:
-        message += f"*¡Entradas agotadas\!*"
-    return message
-    
-
-def notify(bot, event, chat_id):
-    # See telegram comments on message limits:
-    # https://core.telegram.org/bots/faq#my-bot-is-hitting-limits-how-do-i-avoid-this
-    global MSG_COUNT
-    message = markdown_message(event)
-    try:
-        if event['img']:
-            bot.send_photo(
-                    chat_id=chat_id,
-                    photo=event['img'],
-                    parse_mode=telegram.ParseMode.MARKDOWN_V2,
-                    caption=message
-                    )
+    def notify_new_event(self, event:Event):
+        # See telegram comments on message limits:
+        # https://core.telegram.org/bots/faq#my-bot-is-hitting-limits-how-do-i-avoid-this
+        photo = event.get('img')
+        message_id = None
+        try:
+            if photo:
+                message_id = self.bot.send_photo(
+                        chat_id = self.chat_id,
+                        parse_mode = telegram.ParseMode.MARKDOWN_V2,
+                        photo = photo,
+                        caption = event.message()
+                        ).message_id
+            else:
+                message_id = self.bot.send_message(
+                        chat_id = self.chat_id,
+                        parse_mode = telegram.ParseMode.MARKDOWN_V2,
+                        text = event.message()
+                        ).message_id
+        except Exception as e:
+            raise e
         else:
-            bot.send_message(
-                    chat_id=chat_id,
-                    parse_mode=telegram.ParseMode.MARKDOWN_V2,
-                    text = message
-                    )
-    except Exception as e:
-        print(e)
-        return False
-    else:
-        sleep(1.1) # Avoid sending more than one message per second
-        MSG_COUNT += 1
-        if MSG_COUNT % 20 == 0:
-            sleep(40) # Avoid sending more than 20 messages per minute
-        return True
+            event.sent = True
+            event.message_id = message_id
+            sleep(1.05) # Avoid sending more than one message per second
+            self.msg_count += 1
+            if self.msg_count % 20 == 0:
+                sleep(40) # Avoid sending more than one message per minute
 
-def register_new(event, db, bot, chat_id):
-    logging.info(f"New event: {event['title']} - {event['site']}")
-    event['sent'] = notify(bot, event, chat_id)
-    db.insert(event)
+    def update_event_info(self, event:Event):
+        photo = event.get('img')
+        try:
+            if photo:
+                self.bot.edit_message_caption(
+                        chat_id = self.chat_id,
+                        message_id = event.message_id,
+                        parse_mode = telegram.ParseMode.MARKDOWN_V2,
+                        photo = photo,
+                        caption = event.message()
+                        )
+            else:
+                self.bot.edit_message_text(
+                        chat_id = self.chat_id,
+                        message_id = event.message_id,
+                        parse_mode = telegram.ParseMode.MARKDOWN_V2,
+                        text = event.message()
+                        )
+        except telegram.error.BadRequest as e:
+            logging.debug(f"Message {event.message_id} didn't change")
+        except Exception as e:
+            raise e
+        else:
+            logging.info(f"Message {event.message_id} updated")
+            sleep(1.05) # Avoid sending more than one message per second
+            self.msg_count += 1
+            if self.msg_count % 20 == 0:
+                sleep(40) # Avoid sending more than one message per minute
 
 
-def update_old(event, db, bot, chat_id):
-    #TODO: implementar
-    pass
+def fetch_events():
+    client = JoboClient(JOBO_USER, JOBO_PASS)
+    events_raw = client.get_events_raw()
+    events = scrape_events(events_raw)
+    return events
 
 
-def main(**kwargs):
-    if kwargs['testing']:
-        logging.debug(f"Running in testing mode")
-    else:
-        logging.debug(f"Running in production mode")
-    db, query = TinyDB('jobo_history.json'), Query()
-    result, session = login(JOBO_USER, JOBO_PASS)
-    events = scrape_events(session)
-    chat_id = CHAT_ID_TEST if kwargs['testing'] else CHAT_ID_PROD
-    bot = telegram.Bot(token=BOT_TOKEN)
+def process_events(events, chat_id):
+    bot = JoboBot(BOT_TOKEN, chat_id)
+    news = False
     for event in events:
-        if db.search(query.title == event['title']): #TODO: falla en el servidor
-            update_old(event, db, bot, chat_id)
-        else:
-            register_new(event, db, bot, chat_id)
+        entradas_disponibles = bool(event.data['buy_url'])
+        if (not event.sent) and (not event.db_search()) and entradas_disponibles:
+            news = True
+            logging.info(f"New event: {event}")
+            bot.notify_new_event(event)
+            event.db_insert()
+        elif event.db_search() and event.db_diff():
+            news = True
+            logging.info(f"Event changed: {event}")
+            event.data['buy_url'] = None
+            bot.update_event_info(event)
+            event.db_update()
+    if not news:
+        logging.debug("Didn't find any new events or changes")
+
 
 def parse_args():
     import argparse
@@ -205,14 +340,37 @@ def parse_args():
             help='Set log level to DEBUG')
     return parser.parse_args()
 
-if __name__ == '__main__':
+
+def main():
+    args = parse_args()
     try:
-        args = parse_args()
-        logging.basicConfig(
-            format = '%(asctime)s:%(levelname)s:%(process)d:%(message)s',
-            level = logging.DEBUG if args.debug else logging.INFO,
-            handlers = [logging.FileHandler("jobo_bot.log"), logging.StreamHandler(sys.stdout)]
-            )
-        main(testing = not args.prod)
+        if args.debug:
+            logging.basicConfig(
+                    format = LOGGING_FORMAT, level = logging.DEBUG,
+                    handlers = [
+                        logging.FileHandler("jobo_bot.debug.log"),
+                        logging.StreamHandler(sys.stdout)
+                        ]
+                    )
+        else:
+            logging.basicConfig(
+                    format = LOGGING_FORMAT, level = logging.INFO,
+                    handlers = [
+                        logging.FileHandler("jobo_bot.log"),
+                        logging.StreamHandler(sys.stdout)
+                        ]
+                    )
     except Exception as e:
         logging.error(''.join(traceback.format_exception(None, e, e.__traceback__)))
+    else:
+        testing = not args.prod
+        if testing:
+            logging.debug(f"Running in testing mode")
+        else:
+            logging.debug(f"Running in production mode")
+        chat_id = CHAT_ID_TEST if testing else CHAT_ID_PROD
+        process_events(fetch_events(), chat_id)
+
+
+if __name__ == '__main__':
+    main()
