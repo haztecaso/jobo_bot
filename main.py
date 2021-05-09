@@ -324,7 +324,8 @@ def process_events(events, chat_id):
             news = True
             logging.info(f"Event changed: {event}")
             event.data['buy_url'] = None
-            bot.update_event_info(event)
+            if event.message_id:
+                bot.update_event_info(event)
             event.db_update()
     if not news:
         logging.debug("Didn't find any new events or changes")
