@@ -1,3 +1,6 @@
+# Project related files
+*.log
+database.json
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
