@@ -3,7 +3,6 @@
 TODO
 - Probar a enviar de nuevo eventos no enviados
 - Backups del historial
-- Editar mensajes cuando se agotan las entradas
 - Versión con retraso
 - Base de datos con sqlite
 - Escalar imágenes para que estén todas al mismo tamaño
