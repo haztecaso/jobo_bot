@@ -1,13 +1,4 @@
 #!/usr/bin/env python3
-"""
-TODO
-- Probar a enviar de nuevo eventos no enviados
-- Backups del historial
-- Versión con retraso
-- Base de datos con sqlite
-- Escalar imágenes para que estén todas al mismo tamaño
-- Configuración: fichero / argumentos
-"""
 
 import logging, sys, traceback, json
 import urllib.parse
