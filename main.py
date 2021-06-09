@@ -9,7 +9,7 @@ TODO
 - Configuración: fichero / argumentos
 """
 
-import logging, sys, traceback
+import logging, sys, traceback, json
 import urllib.parse
 from time import time, sleep
 
@@ -27,16 +27,27 @@ BASE_URL   = "https://madridcultura-jobo.shop.secutix.com"
 LOGIN_URL  = f"{BASE_URL}/account/login"
 EVENTS_URL = f"{BASE_URL}/secured/list/events"
 
-JOBO_USER  = "adrianlattes@gmail.com"
-JOBO_PASS  = "jF%3L9j$0e7#dbbe?7]*BN5Cy"
 
 BOT_TOKEN = "1749715587:AAH626inXY9mDxNHYiiIII8Rz5RoYBhgsrM"
 CHAT_ID_TEST = "1624473"
-CHAT_ID_PROD = "-1001391859850"
+CHAT_ID_PROD = ""
 
 DB = TinyDB('database.json')
 
 MSG_COUNT = 0
+
+class Config():
+    def __init__(self, config_file = "config.json"):
+        self.file = config_file
+        self.data = {}
+        self._load()
+
+    def _load(self):
+        with open(self.file) as f:
+            self.data = json.load(f)
+
+    def get(self, key):
+        return self.data[key]
 
 
 class JoboClient():
@@ -303,15 +314,15 @@ class JoboBot():
                 sleep(40) # Avoid sending more than one message per minute
 
 
-def fetch_events():
-    client = JoboClient(JOBO_USER, JOBO_PASS)
+def fetch_events(cfg):
+    client = JoboClient(cfg.get('jobo_user'), cfg.get('jobo_password'))
     events_raw = client.get_events_raw()
     events = scrape_events(events_raw)
     return events
 
 
-def process_events(events, chat_id):
-    bot = JoboBot(BOT_TOKEN, chat_id)
+def process_events(cfg, events):
+    bot = JoboBot(cfg.get('telegram_bot_token'), cfg.get('telegram_chat_id'))
     news = False
     for event in events:
         entradas_disponibles = bool(event.data['buy_url'])
@@ -366,10 +377,12 @@ def main():
         testing = not args.prod
         if testing:
             logging.debug(f"Running in testing mode")
+            cfg = Config("config.json")
         else:
             logging.debug(f"Running in production mode")
-        chat_id = CHAT_ID_TEST if testing else CHAT_ID_PROD
-        process_events(fetch_events(), chat_id)
+            cfg = Config("config.test.json")
+        events = fetch_events(cfg)
+        process_events(cfg, events)
 
 
 if __name__ == '__main__':
