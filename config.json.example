@@ -1,6 +1,7 @@
 {
-  "jobo_user": "",
-  "jobo_password": "",
-  "telegram_bot_token": "",
-  "telegram_chat_id": ""
+  "db_file" : "database.json",
+  "jobo_user": "usuario@ejemplo.com",
+  "jobo_password": "contraseña_jobo",
+  "telegram_bot_token": "xxxxxxxxxx:yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+  "telegram_chat_id": "000000000"
 }
