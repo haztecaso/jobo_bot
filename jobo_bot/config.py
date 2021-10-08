@@ -16,13 +16,13 @@ class Config():
         self.config_logger(self.logging_format, self.test)
         self._db = None
 
-    def _get(self, key):
+    def _get(self, key, default=None):
         if key not in self.data:
             raise KeyError(f'Missing key "{key}" in config file {self.file}')
-        return self.data[key]
+        return self.data.get(key, default)
 
     @property
-    def db_file(self): return self.data.get('db_file', 'database.json')
+    def db_file(self): return self._get('db_file', 'database.json')
 
     @property
     def db(self):
@@ -32,7 +32,7 @@ class Config():
 
     @property
     def logging_format(self):
-        return self.data.get(
+        return self._get(
                 'logging_format',
                 '%(asctime)s:%(levelname)s:%(process)d:%(message)s'
                 )
