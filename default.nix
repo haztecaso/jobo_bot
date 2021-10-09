@@ -13,6 +13,9 @@ buildPythonPackage rec {
     python-telegram-bot
   ];
 
+  # checkInputs = [ pytest ];
+  # checkPhase = "pytest";
+
   meta = with lib; {
     homepage = "https://github.com/haztecaso/jobo_bot";
     description = "Bot para recibir avisos de los eventos de jobo";
