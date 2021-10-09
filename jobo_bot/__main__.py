@@ -3,8 +3,9 @@
 import logging
 
 from .config import Config
-from .bot import JoboBot
-from .client import JoboClient
+from jobo_bot.bot import JoboBot
+
+from .scrapers.secutix import Scraper as SecutixScraper
 
 
 def parse_args():
@@ -40,8 +41,7 @@ def process_events(conf:Config, events):
 def main():
     args = parse_args()
     conf = Config(test = not args.prod)
-    client = JoboClient(conf)
-    events = client.fetch_events()
+    events = SecutixScraper(conf).fetch_events()
     process_events(conf, events)
 
 

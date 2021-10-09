@@ -2,11 +2,6 @@ import logging, sys, json
 from tinydb import TinyDB, Query
 
 class Config():
-
-    BASE_URL   = "https://madridcultura-jobo.shop.secutix.com"
-    LOGIN_URL  = f"{BASE_URL}/account/login"
-    EVENTS_URL = f"{BASE_URL}/secured/list/events"
-
     def __init__(self, **kwargs):
         self.test = kwargs.get('test', True)
         self.file = kwargs.get('file', 'config.test.json' if self.test else 'config.json')

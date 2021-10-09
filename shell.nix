@@ -5,7 +5,7 @@ let
 in
 pkgs.mkShell {
   nativeBuildInputs = with pkgs.python38Packages; [
-    jobo_bot
+    # jobo_bot
     requests
     beautifulsoup4
     tinydb
