@@ -16,8 +16,8 @@ class Config():
         self.config_logger(self.logging_format, self.test)
         self._db = None
 
-    def _get(self, key, default=None):
-        if key not in self.data:
+    def _get(self, key, default=None, **kwargs):
+        if key not in self.data and kwargs.get('required', True):
             raise KeyError(f'Missing key "{key}" in config file {self.file}')
         return self.data.get(key, default)
 
@@ -34,7 +34,8 @@ class Config():
     def logging_format(self):
         return self._get(
                 'logging_format',
-                '%(asctime)s:%(levelname)s:%(process)d:%(message)s'
+                '%(asctime)s:%(levelname)s:%(process)d:%(message)s',
+                required = False
                 )
 
     @property

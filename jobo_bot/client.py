@@ -2,7 +2,7 @@ import logging, requests
 
 from bs4 import BeautifulSoup 
 from .config import Config
-from .event import EventScraper
+from .eventscraper import EventScraper
 
 class JoboClient():
     def __init__(self, config:Config):

@@ -1,7 +1,8 @@
-from .event import Event, EventScraper
+from .event import Event
+from .eventscraper import EventScraper
 from .bot import JoboBot
 from .client import JoboClient
-from .__main__ import process_events
+# from .__main__ import process_events
 from .config import Config
 
 __all__ = [
@@ -9,6 +10,6 @@ __all__ = [
         'EventScraper',
         'JoboBot',
         'JoboClient',
-        'process_events',
+        # 'process_events',
         'Config'
         ]
