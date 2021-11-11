@@ -1,16 +1,16 @@
 { pkgs, lib }:
-with pkgs.python38Packages;
-buildPythonPackage rec {
+pkgs.python38Packages.buildPythonPackage rec {
   pname = "jobo_bot";
   version = "1.1.0";
 
   src = ./.;
 
-  propagatedBuildInputs = [
+  propagatedBuildInputs = with pkgs.python38Packages; [
     requests
     beautifulsoup4
     tinydb
     python-telegram-bot
+    selenium
   ];
 
   # checkInputs = [ pytest ];
