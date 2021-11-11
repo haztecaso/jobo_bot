@@ -14,8 +14,6 @@ class JoboBot():
         self.msg_count = 0
 
     def notify_new_event(self, event:Event):
-        # See telegram comments on message limits:
-        # https://core.telegram.org/bots/faq#my-bot-is-hitting-limits-how-do-i-avoid-this
         photo = event.get('img')
         message_id = None
         try:
@@ -37,10 +35,12 @@ class JoboBot():
         else:
             event.sent = True
             event.message_id = message_id
+            # See telegram comments on message limits:
+            # https://core.telegram.org/bots/faq#my-bot-is-hitting-limits-how-do-i-avoid-this
             sleep(1.05) # Avoid sending more than one message per second
             self.msg_count += 1
             if self.msg_count % 20 == 0:
-                sleep(40) # Avoid sending more than one message per minute
+                sleep(40) # Avoid sending more than 20 messages per minute
 
     def update_event_info(self, event:Event):
         photo = event.get('img')
