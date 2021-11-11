@@ -47,21 +47,17 @@ class Scraper():
                 headers=dict(referer=LOGIN_URL)
                 )
 
-    def _get_events_raw(self):
+    def fetch_events(self) -> List[Event]:
         self.logger.debug("Getting events")
         html = self.session.get(
                 EVENTS_URL,
                 headers = dict(referer=EVENTS_URL)
                 ).text
-        soup = BeautifulSoup(html, 'html.parser')
-        return soup.select('div.group_content > ul > li > .product')
-
-    def fetch_events(self) -> List[Event]:
-        events_raw = self._get_events_raw()
+        events_raw = BeautifulSoup(html, 'html.parser').select('div.group_content > ul > li > .product')
         self.logger.debug("Scraping events")
         self.logger.debug(f"{len(events_raw)} events found")
-        return [EventScraper(self.config).scrape(event_raw)\
-                for event_raw in events_raw]
+        event_scraper = EventScraper(self.config)
+        return [event_scraper.scrape(event_raw) for event_raw in events_raw]
 
 
 class EventScraper:

@@ -5,7 +5,8 @@ import logging
 from .config import Config
 from jobo_bot.bot import JoboBot
 
-from .scrapers.secutix import Scraper as SecutixScraper
+from jobo_bot.scrapers.secutix import Scraper as SecutixScraper
+from jobo_bot.scrapers.madriddestino import Scraper as MadridDestinoScraper 
 
 
 def parse_args():
@@ -37,13 +38,14 @@ def process_events(conf:Config, events):
         logging.debug("Didn't find any new events or changes")
 
 
-
 def main():
     args = parse_args()
     conf = Config(test = not args.prod)
-    events = SecutixScraper(conf).fetch_events()
-    process_events(conf, events)
+    scraper = MadridDestinoScraper(conf)
+    print(scraper._get_events_raw())
 
+    # events = SecutixScraper(conf).fetch_events()
+    # process_events(conf, events)
 
 if __name__ == '__main__':
     main()
