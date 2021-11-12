@@ -89,4 +89,3 @@ class Event:
         url = self.get('buy_url')
         return f"[Consigue tu entrada]({url})" if url else "*¡Entradas agotadas\\!*"
 
-

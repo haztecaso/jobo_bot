@@ -6,7 +6,7 @@ from .config import Config
 from jobo_bot.bot import JoboBot
 
 from jobo_bot.scrapers.secutix import Scraper as SecutixScraper
-from jobo_bot.scrapers.madriddestino import Scraper as MadridDestinoScraper 
+from jobo_bot.scrapers.madriddestino import scrape_events as MadridDestinoScraper 
 
 
 def parse_args():
@@ -17,7 +17,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def process_events(conf:Config, events):
+def process_secutix_events(conf:Config, events):
     bot = JoboBot(conf)
     news = False
     for event in events:
@@ -37,15 +37,32 @@ def process_events(conf:Config, events):
     if not news:
         logging.debug("Didn't find any new events or changes")
 
+def process_madriddestino_events(conf:Config, events):
+    bot = JoboBot(conf)
+    news = False
+    for event in events:
+        if (not event.sent) and (not event.db_search()):
+            news = True
+            logging.info(f"New event: {event}")
+            bot.notify_new_event(event)
+            event.db_insert()
+        elif event.db_search() and event.db_diff():
+            news = True
+            logging.info(f"Event changed: {event}")
+            event.data['buy_url'] = None
+            if event.message_id:
+                bot.update_event_info(event)
+            event.db_update()
+    if not news:
+        logging.debug("Didn't find any new events or changes")
 
 def main():
     args = parse_args()
     conf = Config(test = not args.prod)
-    scraper = MadridDestinoScraper(conf)
-    print(scraper._get_events_raw())
-
-    # events = SecutixScraper(conf).fetch_events()
-    # process_events(conf, events)
+    events = MadridDestinoScraper(conf)
+    process_madriddestino_events(conf, events)
+    events = SecutixScraper(conf).fetch_events()
+    process_secutix_events(conf, events)
 
 if __name__ == '__main__':
     main()
