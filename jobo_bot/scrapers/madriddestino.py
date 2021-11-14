@@ -28,7 +28,7 @@ SELECTORS = {
         "prev_date": "div.c-mod-card-event__data > div.c-mod-card-event__data-date",
         "soldout": "div > div.c-mod-card-event__soldout-txt",
         "title": ".c-mod-bar-event_data-title",
-        "date": ".c-mod-file-event__list-info-item-date > div:nth-child(2)",
+        "date": ".c-mod-file-event__list-info-item-date > div:nth-child(2), .c-mod-file-event__list-info-item-date2 > div:nth-child(2)",
         "duration": "li.c-mod-file-event__list-info-item.c-mod-file-event__list-info-item-time > div:nth-child(2)",
         "site": ".c-mod-bar-organization__title-text",
         "description": ".c-mod-file-event_description",
@@ -46,21 +46,22 @@ EVENT_DATA_SELECTORS = {
         "date": FindMode.NORMALIZEDTEXT,
         "duration": FindMode.NORMALIZEDTEXT,
         "site": FindMode.NORMALIZEDTEXT,
-        "description": FindMode.TEXT,
         "img": (FindMode.ATTR, "src"),
+        # "description": FindMode.TEXT,
         }
 
 BASE_URL   = "https://tienda.madrid-destino.com/es"
 EVENTS_URL = f"{BASE_URL}/?jobo=1"
 
-
-def find(parent, selector_name, mode: Union[FindMode, Tuple[FindMode, str]]):
+def _find(parent, selector):
     element = None
+    try: element = parent.find_element_by_css_selector(selector)
+    except NoSuchElementException: pass
+    return element
+
+def find(parent, selector_name, mode: Union[FindMode, Tuple[FindMode, str]] = FindMode.RAW):
+    element = _find(parent, SELECTORS[selector_name])
     result = None
-    try:
-        element = parent.find_element_by_css_selector(SELECTORS[selector_name])
-    except NoSuchElementException:
-        pass
     if mode == FindMode.RAW:
         result = element
     elif mode == FindMode.BOOL:
@@ -78,6 +79,12 @@ def multifind(parent, selectors):
     data = {sel: find(parent, sel, mode) for sel, mode in selectors.items()}
     data["parent"] = parent
     return data
+
+def wait(driver, selector_name, timeout = 15):
+    WebDriverWait(driver, timeout)\
+            .until(EC.presence_of_element_located(
+                (By.CSS_SELECTOR, SELECTORS[selector_name])
+                ))
 
 def click(driver, el):
     try:
@@ -98,15 +105,14 @@ def get_elems_preview(driver):
     return list(filter(lambda ev: not ev["soldout"], preview_list))
 
 def scrape_event(config, driver):
-    WebDriverWait(driver, 15)\
-            .until(EC.presence_of_element_located(
-                (By.CSS_SELECTOR, SELECTORS["title"])
-                ))
+    wait(driver, "title")
     event_data = multifind(driver, EVENT_DATA_SELECTORS)
     event_data["info_url"] = driver.current_url
     event_data["buy_url"] = driver.current_url
     del event_data["parent"]
-    return Event(config.db, **event_data)
+    event = Event(config.db, **event_data)
+    config.logger.debug(f"Scraped event: {event}")
+    return event
 
 def parse_events(config, driver):
     visited_events = []
@@ -117,19 +123,17 @@ def parse_events(config, driver):
             event_preview = next(ev for ev in previews if (ev["prev_title"],ev["prev_date"]) not in visited_events)
         except StopIteration:
             break
-        config.logger.debug(f"- Parsing {event_preview['prev_title']}")
         visited_events.append((event_preview["prev_title"], event_preview["prev_date"]))
         click(driver, event_preview["parent"]) #TODO: FIX
         event = scrape_event(config, driver)
         events.append(event)
-        break
     return events
 
 def scrape_events(config):
     driver = webdriver.Firefox(options=SELENIUM_OPTIONS)
     config.logger.debug("Accepting cookies")
     accept_cookies(driver)
-    config.logger.debug("Fetching events")
+    config.logger.debug("Scraping madrid-destino.com events")
     events = parse_events(config, driver)
     driver.quit()
     return events

@@ -54,7 +54,7 @@ class Scraper():
                 headers = dict(referer=EVENTS_URL)
                 ).text
         events_raw = BeautifulSoup(html, 'html.parser').select('div.group_content > ul > li > .product')
-        self.logger.debug("Scraping events")
+        self.logger.debug("Scraping secutix.com events")
         self.logger.debug(f"{len(events_raw)} events found")
         event_scraper = EventScraper(self.config)
         return [event_scraper.scrape(event_raw) for event_raw in events_raw]

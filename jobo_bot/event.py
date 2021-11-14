@@ -36,6 +36,8 @@ class Event:
         value = self.data[key]
         if escape_markdown:
             for char in "_*[]()~`>#+-=|{}.!":
+                if value == None: #TODO FIX
+                    value = "None"
                 value = value.replace(char, '\\'+char)
         return value
 
