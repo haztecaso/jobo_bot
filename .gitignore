@@ -1,7 +1,7 @@
 # Project related files
 *.log
-database.json
-database_test.json
+database.db
+database_test.db
 config.json
 config.test.json
 
