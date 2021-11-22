@@ -50,8 +50,9 @@ def config_logger(logger):
 Base = declarative_base()
 
 def escape_md(text:str):
-    return text.replace(".", "\\.")\
-               .replace("-", "\\-")
+    for char in "_*[]()~`>#+-=|{}.!":
+        text = text.replace(char, '\\'+char)
+    return text
 
 class Event(Base):
     __tablename__ = 'events'
@@ -71,23 +72,23 @@ class Event(Base):
 
     @property
     def message_md(self):
-        message = f"*{self.title}*"
+        message = f"*{escape_md(self.title)}*"
         if self.place:
-            message += f" - {self.place}"
+            message += f" \\- {escape_md(self.place)}"
         message += "\n"
-        message += f"_{self.date}_\n"
+        message += f"_{escape_md(self.date)}_\n"
         if self.info_url:
             if self.info_url == self.buy_url:
-                message += f"[Mas información / Comprar entradas]({self.info_url})."
+                message += f"[Mas información / Comprar entradas]({self.info_url})\\."
             else:
                 message += f"[Mas información]({self.info_url})"
         if self.buy_url and self.buy_url != self.info_url:
             if self.info_url:
-                message += ". "
-            message += f"[Comprar entradas]({self.buy_url})."
+                message += "\\. "
+            message += f"[Comprar entradas]({self.buy_url})\\."
         if self.info_url or self.buy_url:
             message += "\n"
-        return escape_md(message)
+        return message
 
 def get_event(session, title, date):
     return session\
@@ -101,6 +102,12 @@ def get_or_create_event(session, data):
         event = Event(**data)
     return event
 
+def get_non_sent_events(session):
+    return session\
+            .query(Event)\
+            .order_by(Event.id.desc())\
+            .filter(Event.message_id == None).all()
+
 msg_send_count = 0
 
 def wait_send():
@@ -109,6 +116,15 @@ def wait_send():
     msg_send_count += 1
     if msg_send_count % 20 == 0:
         sleep(40) # Avoid sending more than 20 messages per minute
+
+def notify_error(msg:str, escape=True):
+    bot = telegram.Bot(token=conf["telegram_bot_token"])
+    kwargs = {
+            "chat_id": conf["telegram_chat_id"],
+            "parse_mode": telegram.ParseMode.MARKDOWN_V2,
+            "text": escape_md(msg) if escape else msg,
+            }
+    bot.send_message(**kwargs)
 
 def notify_new_event(event: Event):
     bot = telegram.Bot(token=conf["telegram_bot_token"])
@@ -123,15 +139,14 @@ def notify_new_event(event: Event):
                         if event.img_url\
                         else bot.send_message(**kwargs)
     except telegram.error.BadRequest as e:
-        print(e)
-        pass #TODO
+        logger.error(f"SENDING {event}: {e}")
+        notify_error(f"*ERROR SENDING {escape_md(str(event))}:*\n {escape_md(str(e))}", False)
     else:
         event.message_id = message.message_id
         logger.info(f"Message sent: {event}")
         wait_send()
 
-def update_event_info(event):
-    #TODO: use and test this function
+def update_event_info(event): #TODO: use and test this function
     global msg_send_count
     bot = telegram.Bot(token=conf["telegram_bot_token"])
     assert event.message_id is not None
@@ -145,8 +160,9 @@ def update_event_info(event):
         bot.edit_message_caption(photo = event.img_url, **kwargs)\
                         if event.img_url\
                         else bot.edit_message_text(**kwargs)
-    except telegram.error.BadRequest:
-        pass #TODO
+    except telegram.error.BadRequest as e:
+        logger.error(f"UPDATING MESSAGE {event}: {e}")
+        notify_error(f"*ERROR UPDATING MESSAGE {escape_md(str(event))}:*\n {escape_md(str(e))}", False)
     else:
         wait_send()
 
@@ -265,8 +281,13 @@ def md_parse_events(session, driver):
             break
         visited_events.append((event_preview["prev_title"], event_preview["prev_date"]))
         selenium_click(driver, event_preview["parent"]) #TODO: FIX
-        event = md_scrape_event(session, driver)
-        events.append(event)
+        try:
+            event = md_scrape_event(session, driver)
+        except Exception as e:
+            logger.error(f"PARSING EVENT: {e}")
+            notify_error(f"*ERROR PARSING EVENT:*\n {escape_md(str(e))}", False)
+        else:
+            events.append(event)
     return events
 
 def MadridDestinoScraper(session):
@@ -293,11 +314,10 @@ if __name__ == '__main__':
         logger.info(f"Creating db file: ./{conf['db_file']}")
         Base.metadata.create_all(engine)
     session = Session()
-    # e = Event(title="Prueba", date="today", info_url="url1", buy_url="url2")
-    # session.add(e)
+    # events = MadridDestinoScraper(session)
     # session.commit()
-    # e = get_event(session, "Prueba", "today")
-    events = MadridDestinoScraper(session)
-    session.commit()
-    process_events(session, events)
-    # notify_new_event()
+    # process_events(session, events)
+    non_sent_events = get_non_sent_events(session)
+    process_events(session, non_sent_events)
+    if non_sent_events:
+        logger.info(f"There are {len(non_sent_events)} non sent events in database!")
