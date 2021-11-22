@@ -9,9 +9,9 @@ pkgs.mkShell {
     #jobo_bot
     requests
     beautifulsoup4
-    tinydb
     python-telegram-bot
     selenium
+    sqlalchemy
   ];
   shellHook = ''
     alias jobo_bot="python -m jobo_bot"

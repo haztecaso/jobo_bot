@@ -8,9 +8,9 @@ pkgs.python38Packages.buildPythonPackage rec {
   propagatedBuildInputs = with pkgs.python38Packages; [
     requests
     beautifulsoup4
-    tinydb
     python-telegram-bot
     selenium
+    sqlalchemy
   ];
 
   # checkInputs = [ pytest ];
