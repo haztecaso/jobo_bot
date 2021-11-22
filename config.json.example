@@ -1,7 +1,7 @@
 {
-  "db_file" : "database.json",
-  "jobo_user": "usuario@ejemplo.com",
-  "jobo_password": "contraseña_jobo",
+  "db_file" : "database.db",
+  "secutix_user": "usuario@ejemplo.com",
+  "secutix_password": "contraseña_jobo",
   "telegram_bot_token": "xxxxxxxxxx:yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
   "telegram_chat_id": "000000000"
 }
