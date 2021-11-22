@@ -12,10 +12,12 @@ class JoboBot():
         self.logger = config.logger
         self.bot = telegram.Bot(token=self.token)
         self.msg_count = 0
+        self.tries = 0
 
     def notify_new_event(self, event:Event):
         photo = event.get('img')
         message_id = None
+        self.tries += 1
         try:
             if photo:
                 message_id = self.bot.send_photo(
@@ -30,6 +32,10 @@ class JoboBot():
                         parse_mode = telegram.ParseMode.MARKDOWN_V2,
                         text = event.message()
                         ).message_id
+        except telegram.error.BadRequest as e:
+            event.data['img'] = None
+            if self.tries < 3:
+                self.notify_new_event(event)
         except Exception as e:
             raise e
         else:

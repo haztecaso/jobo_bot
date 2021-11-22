@@ -6,7 +6,7 @@ from .config import Config
 from jobo_bot.bot import JoboBot
 
 from jobo_bot.scrapers.secutix import Scraper as SecutixScraper
-from jobo_bot.scrapers.madriddestino import scrape_events as MadridDestinoScraper 
+from jobo_bot.scrapers.madriddestino import scrape_events as MadridDestinoScraper
 
 
 def parse_args():
