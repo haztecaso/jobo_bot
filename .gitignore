@@ -4,6 +4,8 @@ database.*
 database_test.*
 config.json
 config.test.json
+migrations/*.json
+migrations/*.db
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

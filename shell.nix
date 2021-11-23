@@ -5,8 +5,8 @@ let
 in
 pkgs.mkShell {
   nativeBuildInputs = with pkgs.python38Packages; [
+    #jobo_bot
     mypy
-    jobo_bot
     requests
     beautifulsoup4
     python-telegram-bot

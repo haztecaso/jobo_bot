@@ -4,11 +4,9 @@ Bot para recibir avisos de los eventos de [jobo](https://madridcultura-jobo.shop
 
 ## To do
 
-- Añadir soporte para la nueva plataforma
 - Probar a enviar de nuevo eventos no enviados
 - Editar mensajes cuando se agotan las entradas
 - Backups del historial
 - Versión con retraso
-- Base de datos con sqlite
 - Escalar imágenes para que estén todas al mismo tamaño
 - Configuración: fichero / argumentos
