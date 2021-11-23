@@ -7,7 +7,7 @@ with open("readme.md", "r") as readme_file:
 
 setuptools.setup(
     name="jobo_bot",
-    version="1.1.0",
+    version="1.2.0",
     author="Adrián Lattes",
     author_email="adrianlattes@disroot.org",
     description="todo",

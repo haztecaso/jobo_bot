@@ -1,7 +1,7 @@
 { pkgs ? <nixpkgs> }:
 pkgs.python38Packages.buildPythonPackage rec {
   pname = "jobo_bot";
-  version = "1.1.0";
+  version = "1.2.0";
 
   src = ./.;
 
