@@ -210,7 +210,7 @@ MD_SELECTORS = {
         "prev_title": "div.c-mod-card-event__data > div.c-mod-card-event__data-title",
         "prev_date": "div.c-mod-card-event__data > div.c-mod-card-event__data-date",
         "soldout": "div > div.c-mod-card-event__soldout-txt",
-        "title": ".c-mod-bar-event_data-title",
+        "title": ".c-mod-bar-event_data-title a",
         "date": ".c-mod-file-event__list-info-item-date > div:nth-child(2), .c-mod-file-event__list-info-item-date2 > div:nth-child(2)",
         "duration": "li.c-mod-file-event__list-info-item.c-mod-file-event__list-info-item-time > div:nth-child(2)",
         "place": ".c-mod-bar-organization__title-text",

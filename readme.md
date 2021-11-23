@@ -4,6 +4,7 @@ Bot para recibir avisos de los eventos de [jobo](https://madridcultura-jobo.shop
 
 ## To do
 
+- Scroll en madrid-destino.com para cargar todos los eventos
 - Probar a enviar de nuevo eventos no enviados
 - Editar mensajes cuando se agotan las entradas
 - Backups del historial
