@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
-import argparse, logging, json
-import telegram
-import requests, re
+import argparse, logging, json, re, sys
+
+from os.path import isfile
+from time import sleep
 
 from enum import Enum, auto
 from typing import Union, Tuple, List
-
-from os.path import isfile
-import sys
-from time import sleep
 
 from sqlalchemy import Column, Integer, String, create_engine
 from sqlalchemy.ext.declarative import declarative_base
@@ -22,6 +19,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 
 from bs4 import BeautifulSoup 
+
+import requests, telegram
 
 parser = argparse.ArgumentParser(description="JOBO BOT")
 parser.add_argument('--prod', dest='prod', action='store_true',
