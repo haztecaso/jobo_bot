@@ -13,9 +13,6 @@ pkgs.python38Packages.buildPythonPackage rec {
     sqlalchemy
   ];
 
-  # checkInputs = [ pytest ];
-  # checkPhase = "pytest";
-
   meta = with pkgs.lib; {
     homepage = "https://github.com/haztecaso/jobo_bot";
     description = "Bot para recibir avisos de los eventos de jobo";
