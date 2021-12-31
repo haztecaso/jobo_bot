@@ -10,12 +10,11 @@ setuptools.setup(
     version="1.2.0",
     author="Adrián Lattes",
     author_email="adrianlattes@disroot.org",
-    description="todo",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/haztecaso/jobo_bot",
     packages=setuptools.find_packages(),
-    entry_points={ "console_scripts": ["jobo_bot = jobo_bot.__main__:main"]},
+    scripts = [ "jobo_bot" ],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)"
