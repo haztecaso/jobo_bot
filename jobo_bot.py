@@ -18,7 +18,7 @@ from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 
-from bs4 import BeautifulSoup 
+from bs4 import BeautifulSoup
 
 import requests, telegram
 
@@ -36,22 +36,23 @@ with open(config_file) as f:
 
 logger = logging.getLogger("jobo_bot")
 
-def config_logger(logger):
-    logger.setLevel(logging.DEBUG if test else logging.INFO)
-    formatter = logging.Formatter('%(asctime)s:%(levelname)s:%(process)d:%(message)s')
-    log_file = 'jobo_bot.test.log' if test else 'jobo_bot.log'
+logger.setLevel(logging.DEBUG if test else logging.INFO)
+formatter = logging.Formatter('%(asctime)s:%(levelname)s:%(process)d:%(message)s')
+log_file = 'jobo_bot.test.log' if test else 'jobo_bot.log'
 
-    file_handler = logging.FileHandler(log_file)
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
+file_handler = logging.FileHandler(log_file)
+file_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
 
-    stream_handler = logging.StreamHandler(sys.stdout)
-    stream_handler.setFormatter(formatter)
-    logger.addHandler(stream_handler)
+stream_handler = logging.StreamHandler(sys.stdout)
+stream_handler.setFormatter(formatter)
+logger.addHandler(stream_handler)
 
 Base = declarative_base()
 
 def escape_md(text:str):
+    if text is None:
+        return text
     for char in "_*[]()~`>#+-=|{}.!":
         text = text.replace(char, '\\'+char)
     return text
@@ -166,8 +167,8 @@ def notify_new_event(event: Event):
         try:
             message = bot.send_message(text=event.message_md, **send_conf)
         except telegram.error.BadRequest as e:
-            logger.error(f"SENDING {event}: {e}")
-            notify_error(f"*ERROR SENDING {escape_md(str(event))}:*\n {escape_md(str(e))}", False)
+            logger.error(f"SENDING {event}: {repr(e)}")
+            notify_error(f"*ERROR SENDING {escape_md(str(event))}:*\n {escape_md(repr(e))}", False)
     if message:
         event.message_id = message.message_id
         logger.info(f"Message sent: {event}")
@@ -188,8 +189,8 @@ def update_event_info(event): #TODO: fix, test and use this function
                         if event.img_url\
                         else bot.edit_message_text(**kwargs)
     except telegram.error.BadRequest as e:
-        logger.error(f"UPDATING MESSAGE {event}: {e}")
-        notify_error(f"*ERROR UPDATING MESSAGE {escape_md(str(event))}:*\n {escape_md(str(e))}", False)
+        logger.error(f"UPDATING MESSAGE {event}: {repr(e)}")
+        notify_error(f"*ERROR UPDATING MESSAGE {escape_md(str(event))}:*\n {escape_md(repr(e))}", False)
     else:
         wait_send()
 
@@ -199,9 +200,6 @@ class FindMode(Enum):
     TEXT=auto()
     NORMALIZEDTEXT=auto()
     ATTR=auto()
-
-SELENIUM_OPTIONS = FirefoxOptions()
-SELENIUM_OPTIONS.headless = True
 
 MD_SELECTORS = {
         "cookie_accept_button": "div.c-mod-cookies > div > div > div > button:nth-child(2)",
@@ -253,6 +251,19 @@ def selenium_click(driver, el):
     except ElementClickInterceptedException:
         webdriver.ActionChains(driver).move_to_element(el).click(el).perform()
 
+def selenium_document_height(driver):
+    return driver.execute_script("return document.body.scrollHeight")
+
+def selenium_infinite_scroll(driver, sleep_time=2):
+    last_height = selenium_document_height(driver)
+    while True:
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight)")
+        sleep(sleep_time)
+        new_height = selenium_document_height(driver)
+        if new_height == last_height:
+            break
+        last_height = new_height
+
 def md_find_selector(parent, selector_name, mode: Union[FindMode, Tuple[FindMode, str]] = FindMode.RAW):
     element = selenium_find(parent, MD_SELECTORS[selector_name])
     result = None
@@ -283,6 +294,7 @@ def md_accept_cookies(driver):
 
 def md_get_elems_preview(driver):
     driver.get(MD_EVENTS_URL)
+    selenium_infinite_scroll(driver)
     elems = driver.find_elements_by_css_selector(MD_SELECTORS["events"])
     preview_list = [md_find_selectors(ev, MD_PREVIEW_SELECTORS) for ev in elems]
     return list(filter(lambda ev: not ev["soldout"], preview_list))
@@ -312,15 +324,19 @@ def md_parse_events(session, driver):
         try:
             event = md_parse_event(session, driver)
         except Exception as e:
-            logger.error(f"PARSING EVENT: {e}")
-            notify_error(f"*ERROR PARSING EVENT:*\n {escape_md(str(e))}", False)
+            logger.error(f"PARSING EVENT {event_preview}: {repr(e)}")
+            notify_error(f"*ERROR PARSING EVENT:*\n{event_preview}\n {escape_md(repr(e))}", False)
         else:
             session.add(event)
             events.append(event)
     session.commit()
     return events
 
+SELENIUM_OPTIONS = FirefoxOptions()
+SELENIUM_OPTIONS.headless = True
+
 def MadridDestinoScraper(session):
+    logger.debug("Starting MadridDestinoScraper")
     driver = webdriver.Firefox(options=SELENIUM_OPTIONS)
     md_accept_cookies(driver)
     events = md_parse_events(session, driver)
@@ -420,8 +436,8 @@ def se_parse_events(session, requests_session):
         try:
             event = se_parse_event(event_raw)
         except Exception as e:
-            logger.error(f"PARSING EVENT: {e}")
-            notify_error(f"*ERROR PARSING EVENT:*\n {escape_md(str(e))}", False)
+            logger.error(f"PARSING EVENT: {repr(e)}")
+            notify_error(f"*ERROR PARSING EVENT:*\n {escape_md(repr(e))}", False)
         else:
             if event:
                 session.add(event)
@@ -430,6 +446,7 @@ def se_parse_events(session, requests_session):
     return events
 
 def SecutixScraper(session):
+    logger.debug("Starting SecutixScraper")
     requests_session = requests.session()
     token = se_get_token(requests_session)
     se_login(requests_session, token)
@@ -442,19 +459,32 @@ def process_events(session, events: List[Event]):
             notify_new_event(event)
             session.commit()
 
-config_logger(logger)
 engine = create_engine(f'sqlite:///{conf["db_file"]}')
 Session = sessionmaker(bind=engine)
 
-if __name__ == '__main__':
+def main():
     if not isfile(conf["db_file"]):
         logger.info(f"Creating db file: ./{conf['db_file']}")
         Base.metadata.create_all(engine)
     session = Session()
+
+    events = get_non_sent_events(session)
+    if events:
+        logger.debug(f"Retrying sending {len(events)} non sent events:")
+        process_events(session, events)
+
     events = MadridDestinoScraper(session)
     process_events(session, events)
+
     events = SecutixScraper(session)
     process_events(session, events)
+
     non_sent_events = get_non_sent_events(session)
     if non_sent_events:
-        logger.debug(f"There are {len(non_sent_events)} non sent events in the database!")
+        logger.debug(f"There are {len(non_sent_events)} non sent events left in the database:")
+        for event in non_sent_events:
+            logger.debug(f"- {event}")
+
+
+if __name__ == '__main__':
+    main()
