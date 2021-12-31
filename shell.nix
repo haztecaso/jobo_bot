@@ -1,11 +1,10 @@
-{ pkgs ? import <nixpkgs> {}}:
+{ pkgs }:
 let
   inherit (pkgs) lib;
-  jobo_bot = import ./default.nix { inherit pkgs; };
 in
 pkgs.mkShell {
   nativeBuildInputs = with pkgs.python38Packages; [
-    #jobo_bot
+    jobo_bot
     mypy
     requests
     beautifulsoup4
@@ -14,6 +13,6 @@ pkgs.mkShell {
     sqlalchemy
   ];
   shellHook = ''
-    alias jobo_bot="python jobo_bot.py"
+    alias jobo_bot_="python jobo_bot"
   '';
 }

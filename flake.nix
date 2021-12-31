@@ -11,8 +11,8 @@
         packages = flake-utils.lib.flattenTree {
           jobo_bot = import ./default.nix { inherit pkgs; };
         };
-        defaultPackage = packages.impo;
-        devShell = import ./shell.nix { inherit pkgs; impo = packages.jobo_bot; };
+        defaultPackage = packages.jobo_bot;
+        devShell = import ./shell.nix { inherit pkgs; };
       }
     );
 }
