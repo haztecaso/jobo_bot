@@ -1,7 +1,16 @@
 {
-  "db_file" : "database.db",
-  "secutix_user": "usuario@ejemplo.com",
-  "secutix_password": "contraseña_jobo",
-  "telegram_bot_token": "xxxxxxxxxx:yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
-  "telegram_chat_id": "000000000"
+  "prod": {
+    "db_file" : "database.db",
+    "secutix_user": "usuario@ejemplo.com",
+    "secutix_password": "contraseña_jobo",
+    "telegram_bot_token": "xxxxxxxxxx:yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+    "telegram_chat_id": "000000000"
+  },
+  "test": {
+    "db_file" : "database_test.db",
+    "secutix_user": "usuario@ejemplo.com",
+    "secutix_password": "contraseña_jobo",
+    "telegram_bot_token": "xxxxxxxxxx:yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+    "telegram_chat_id": "000000000"
+  }
 }

@@ -25,14 +25,22 @@ import requests, telegram
 parser = argparse.ArgumentParser(description="JOBO BOT")
 parser.add_argument('--prod', dest='prod', action='store_true',
         help='Production mode (testing is the default mode)')
+parser.add_argument('--conf', dest='conf', type=str,
+        help='Config file')
 args = parser.parse_args()
 
 test = not args.prod
-config_file = 'config.json' if args.prod else 'config.test.json'
+config_file = 'config.json' if not args.conf else args.conf
+
 
 conf = None
-with open(config_file) as f:
-    conf = json.load(f)
+try:
+    with open(config_file) as f:
+        conf = json.load(f)
+        conf = conf['prod'] if args.prod else conf['test']
+except FileNotFoundError:
+    print(f"No se ha encontrado el fichero de configuración {config_file}.")
+    sys.exit(1)
 
 logger = logging.getLogger("jobo_bot")
 
