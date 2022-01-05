@@ -14,7 +14,7 @@
         defaultPackage = packages.jobo_bot;
         devShell = pkgs.mkShell {
           nativeBuildInputs = with pkgs.python38Packages; [
-            jobo_bot
+            # jobo_bot
             mypy
             requests
             beautifulsoup4
