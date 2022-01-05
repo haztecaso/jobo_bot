@@ -14,8 +14,7 @@
         python-telegram-bot
         selenium
         sqlalchemy
-        pkgs.chromium
-        pkgs.chromedriver
+        pkgs.firefox
       ];
     in
       rec {

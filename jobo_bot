@@ -12,7 +12,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
 from selenium import webdriver
-from selenium.webdriver.chrome.options import Options as ChromeOptions
+from selenium.webdriver.firefox.options import Options as FirefoxOptions
 from selenium.common.exceptions import NoSuchElementException, ElementClickInterceptedException
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -340,14 +340,12 @@ def md_parse_events(session, driver):
     session.commit()
     return events
 
-SELENIUM_OPTIONS = ChromeOptions()
-SELENIUM_OPTIONS.add_argument("--headless")
-SELENIUM_OPTIONS.add_argument("--disable-gui")
-SELENIUM_OPTIONS.add_argument("--disable-extensions")
+SELENIUM_OPTIONS = FirefoxOptions()
+SELENIUM_OPTIONS.headless = True
 
 def MadridDestinoScraper(session):
     logger.debug("Starting MadridDestinoScraper")
-    driver = webdriver.Chrome(options=SELENIUM_OPTIONS)
+    driver = webdriver.Firefox(options=SELENIUM_OPTIONS)
     md_accept_cookies(driver)
     events = md_parse_events(session, driver)
     driver.quit()
