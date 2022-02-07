@@ -36,9 +36,10 @@
         };
         defaultPackage = packages.jobo_bot;
         devShell = pkgs.mkShell {
-          nativeBuildInputs = requirements ++ (with pkgs.python38Packages; [
+          nativeBuildInputs = requirements ++ (with pkgs; [
             # packages.jobo_bot
-            mypy
+            jq
+            fx
           ]);
           shellHook = ''
             alias jobo_bot_="python jobo_bot"
