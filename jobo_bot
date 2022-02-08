@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 import argparse, logging, json, re, sys
 
-from os.path import isfile
+from os.path import isfile, dirname, abspath
+from os import makedirs
 from time import sleep
 from datetime import datetime
 
@@ -26,7 +27,7 @@ args = parser.parse_args()
 test = not args.prod
 config_file = 'config.json' if not args.conf else args.conf
 
-
+# Load config
 conf = None
 try:
     with open(config_file) as f:
@@ -36,6 +37,7 @@ except FileNotFoundError:
     print(f"No se ha encontrado el fichero de configuración {config_file}.")
     sys.exit(1)
 
+# Setup logger
 logger = logging.getLogger("jobo_bot")
 
 logger.setLevel(logging.DEBUG if test else logging.INFO)
@@ -49,6 +51,15 @@ logger.addHandler(file_handler)
 stream_handler = logging.StreamHandler(sys.stdout)
 stream_handler.setFormatter(formatter)
 logger.addHandler(stream_handler)
+
+# Create database path if not exists
+db_path = dirname(abspath(conf["db_file"]))
+try:
+    makedirs(db_path)
+except FileExistsError:
+    pass
+else:
+    logger.debug(f"Created db directory: {db_path}")
 
 Base = declarative_base()
 
