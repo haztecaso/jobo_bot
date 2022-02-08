@@ -1,0 +1,8 @@
+https://api2-tienda.madrid-destino.com/public_api/cycles
+https://api2-tienda.madrid-destino.com/public_api/event-metas/1550/
+https://api2-tienda.madrid-destino.com/public_api/events/1550/info
+https://api2-tienda.madrid-destino.com/public_api/events/1550/sessions
+https://api2-tienda.madrid-destino.com/public_api/organizations
+https://api2-tienda.madrid-destino.com/public_api/organizations/private-promotions?orderCode=null
+https://api2-tienda.madrid-destino.com/public_api/organizations/promotions?orderCode=null
+https://api2-tienda.madrid-destino.com/public_api/packages
