@@ -12,9 +12,7 @@
         requests
         beautifulsoup4
         python-telegram-bot
-        selenium
         sqlalchemy
-        pkgs.firefox
       ];
     in
       rec {
