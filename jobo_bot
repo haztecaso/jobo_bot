@@ -3,6 +3,7 @@ import argparse, logging, json, re, sys
 
 from os.path import isfile
 from time import sleep
+from datetime import datetime
 
 from enum import Enum, auto
 from typing import Union, Tuple, List
@@ -10,13 +11,6 @@ from typing import Union, Tuple, List
 from sqlalchemy import Column, Integer, String, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-
-from selenium import webdriver
-from selenium.webdriver.firefox.options import Options as FirefoxOptions
-from selenium.common.exceptions import NoSuchElementException, ElementClickInterceptedException
-from selenium.webdriver.support.wait import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.by import By
 
 from bs4 import BeautifulSoup
 
@@ -202,154 +196,58 @@ def update_event_info(event): #TODO: fix, test and use this function
     else:
         wait_send()
 
+
+MD_BASE_URL   = "https://tienda.madrid-destino.com/es/"
+MD_API_ENDPOINT = "https://api2-tienda.madrid-destino.com/public_api/organizations"
+MD_API_HEADERS = { "x-salechannel" : "3c4b1c81-e854-4324-830f-d59bec8cf9a2" }
+
+# Exclude non jobo and future events
+def md_event_filter(event):
+    valid_from = datetime.strptime(event["validFrom"], '%Y-%m-%d %H:%M:%S')
+    # is_valid = valid_from <= datetime.now() if valid_from else True
+    is_valid = True
+    is_jobo = "JOBO" in event["enabledMembershipNames"] or event["joboMembership"]
+    return is_jobo and is_valid
+
+# def getDescription(event_metas):
+#     for meta in event_metas:
+#         if meta["name"] == "description":
+#             return meta["content"]
+#     return None
+
+def MadridDestinoGetter(session) -> List[Event]:
+    logger.debug("Starting MadridDestinoGetter")
+    try:
+        response = requests.get(MD_API_ENDPOINT, headers=MD_API_HEADERS)
+        data = response.json()["data"]
+    except Exception as e:
+        print("Exception:", e)
+        return []
+    else:
+        events = []
+        for place in data:
+            for event in filter(md_event_filter, place["events"]):
+                event_data = {
+                        "title": event["title"],
+                        "date": event["eventDateRange"],
+                        "place": place["name"],
+                        "img_url": event["featuredImage"]["url"],
+                        "info_url": f'{MD_BASE_URL}{place["slug"]}/{event["slug"]}',
+                        # "description": getDescription(event["metas"])
+                        }
+                ev = get_or_create_event(session, event_data)
+                logger.debug(f"Got event: {ev}")
+                session.add(ev)
+                events.append(ev)
+        session.commit()
+        return events
+
 class FindMode(Enum):
     RAW=auto()
     BOOL=auto()
     TEXT=auto()
     NORMALIZEDTEXT=auto()
     ATTR=auto()
-
-MD_SELECTORS = {
-        "cookie_accept_button": "div.c-mod-cookies > div > div > div > button:nth-child(2)",
-        "events": "#eventsContent > div.c-mod-filter-events__event-results.row > article",
-        "prev_title": "div.c-mod-card-event__data > div.c-mod-card-event__data-title",
-        "prev_date": "div.c-mod-card-event__data > div.c-mod-card-event__data-date",
-        "soldout": "div > div.c-mod-card-event__soldout-txt",
-        "title": ".c-mod-bar-event_data-title a",
-        "date": ".c-mod-file-event__list-info-item-date > div:nth-child(2), .c-mod-file-event__list-info-item-date2 > div:nth-child(2)",
-        "duration": "li.c-mod-file-event__list-info-item.c-mod-file-event__list-info-item-time > div:nth-child(2)",
-        "place": ".c-mod-bar-organization__title-text",
-        "description": ".c-mod-file-event_description",
-        "img_url": "div.c-mod-file-event__content-info__img > img",
-        }
-
-MD_PREVIEW_SELECTORS = {
-        "prev_title": FindMode.NORMALIZEDTEXT,
-        "prev_date": FindMode.NORMALIZEDTEXT,
-        "soldout": FindMode.BOOL,
-        }
-
-MD_EVENT_DATA_SELECTORS = {
-        "title": FindMode.NORMALIZEDTEXT,
-        "date": FindMode.NORMALIZEDTEXT,
-        "duration": FindMode.NORMALIZEDTEXT,
-        "place": FindMode.NORMALIZEDTEXT,
-        "img_url": (FindMode.ATTR, "src"),
-        # "description": FindMode.TEXT,
-        }
-
-MD_BASE_URL   = "https://tienda.madrid-destino.com/es"
-MD_EVENTS_URL = f"{MD_BASE_URL}/?jobo=1"
-
-def selenium_find(parent, selector):
-    element = None
-    try: element = parent.find_element_by_css_selector(selector)
-    except NoSuchElementException: pass
-    return element
-
-def selenium_wait(driver, selector_name, timeout = 15):
-    WebDriverWait(driver, timeout)\
-            .until(EC.presence_of_element_located(
-                (By.CSS_SELECTOR, MD_SELECTORS[selector_name])
-                ))
-
-def selenium_click(driver, el):
-    try:
-        el.click()
-    except ElementClickInterceptedException:
-        webdriver.ActionChains(driver).move_to_element(el).click(el).perform()
-
-def selenium_document_height(driver):
-    return driver.execute_script("return document.body.scrollHeight")
-
-def selenium_infinite_scroll(driver, sleep_time=2):
-    last_height = selenium_document_height(driver)
-    while True:
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight)")
-        sleep(sleep_time)
-        new_height = selenium_document_height(driver)
-        if new_height == last_height:
-            break
-        last_height = new_height
-
-def md_find_selector(parent, selector_name, mode: Union[FindMode, Tuple[FindMode, str]] = FindMode.RAW):
-    element = selenium_find(parent, MD_SELECTORS[selector_name])
-    result = None
-    if mode == FindMode.RAW:
-        result = element
-    elif mode == FindMode.BOOL:
-        result = True if element else False
-    elif mode == FindMode.TEXT:
-        result = element.text if element else element
-    elif mode == FindMode.NORMALIZEDTEXT:
-        result = element.text.replace('\n', ' ') if element else element
-    elif isinstance(mode,tuple) and mode[0] == FindMode.ATTR:
-        assert len(mode) == 2 and isinstance(mode[1], str), "mode should be of form (FindMode.ATTR, str)"
-        result = element.get_attribute(mode[1]) if element else element
-    return result
-
-def md_find_selectors(parent, selectors_with_modes):
-    data = {sel: md_find_selector(parent, sel, mode) for sel, mode in selectors_with_modes.items()}
-    data["parent"] = parent
-    return data
-
-def md_accept_cookies(driver):
-    logger.debug("Accepting cookies")
-    driver.get(MD_EVENTS_URL)
-    button = md_find_selector(driver, "cookie_accept_button", FindMode.RAW)
-    if button:
-        selenium_click(driver, button)
-
-def md_get_elems_preview(driver):
-    driver.get(MD_EVENTS_URL)
-    selenium_infinite_scroll(driver)
-    elems = driver.find_elements_by_css_selector(MD_SELECTORS["events"])
-    preview_list = [md_find_selectors(ev, MD_PREVIEW_SELECTORS) for ev in elems]
-    return list(filter(lambda ev: not ev["soldout"], preview_list))
-
-def md_parse_event(session, driver):
-    selenium_wait(driver, "title")
-    event_data = md_find_selectors(driver, MD_EVENT_DATA_SELECTORS)
-    event_data["info_url"] = driver.current_url
-    event_data["buy_url"] = driver.current_url
-    del event_data["parent"]
-    event = get_or_create_event(session, event_data)
-    logger.debug(f"Scraped event: {event}")
-    return event
-
-def md_parse_events(session, driver):
-    logger.debug("Scraping madrid-destino.com events")
-    visited_events = []
-    events = []
-    while True:
-        previews = md_get_elems_preview(driver)
-        try:
-            event_preview = next(p for p in previews if (p["prev_title"],p["prev_date"]) not in visited_events)
-        except StopIteration:
-            break
-        visited_events.append((event_preview["prev_title"], event_preview["prev_date"]))
-        selenium_click(driver, event_preview["parent"]) #TODO: FIX
-        try:
-            event = md_parse_event(session, driver)
-        except Exception as e:
-            logger.error(f"PARSING EVENT {event_preview}: {repr(e)}")
-            notify_error(f"*ERROR PARSING EVENT:*\n{event_preview}\n {escape_md(repr(e))}", False)
-        else:
-            session.add(event)
-            events.append(event)
-    session.commit()
-    return events
-
-SELENIUM_OPTIONS = FirefoxOptions()
-SELENIUM_OPTIONS.headless = True
-
-def MadridDestinoScraper(session):
-    logger.debug("Starting MadridDestinoScraper")
-    driver = webdriver.Firefox(options=SELENIUM_OPTIONS)
-    md_accept_cookies(driver)
-    events = md_parse_events(session, driver)
-    driver.quit()
-    return events
 
 SE_SELECTORS = {
         "events": "div.group_content > ul > li > .product",
@@ -423,7 +321,7 @@ def se_login(requests_session, token):
                 headers=dict(referer=SE_LOGIN_URL)
                 )
 
-def se_parse_event(event_raw):
+def se_parse_event(session, event_raw):
     event_data = se_find_selectors(event_raw, SE_EVENT_DATA_SELECTORS)
     if event_data["buy_url"]: # Si no tiene buy_url es porque están agotadas las entradas
         event_data["buy_url"] = f"{SE_BASE_URL}{event_data['buy_url']}"
@@ -442,7 +340,7 @@ def se_parse_events(session, requests_session):
     events =  []
     for event_raw in events_raw:
         try:
-            event = se_parse_event(event_raw)
+            event = se_parse_event(session, event_raw)
         except Exception as e:
             logger.error(f"PARSING EVENT: {repr(e)}")
             notify_error(f"*ERROR PARSING EVENT:*\n {escape_md(repr(e))}", False)
@@ -481,7 +379,7 @@ def main():
         logger.debug(f"Retrying sending {len(events)} non sent events:")
         process_events(session, events)
 
-    events = MadridDestinoScraper(session)
+    events = MadridDestinoGetter(session)
     process_events(session, events)
 
     events = SecutixScraper(session)
