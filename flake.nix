@@ -43,5 +43,9 @@
         alias jobo_bot_="python jobo_bot"
       '';
     });
+
+    overlay = final: prev: {
+      jobo_bot = final.callPackage jobo_bot;
+    };
   };
 }
