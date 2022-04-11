@@ -36,7 +36,7 @@
 
     defaultPackage = forAllSystems (system: packages.${system}.jobo_bot);
 
-    nixosModule = { config, lib, pkgs, ... }:
+    nixosModule = { config, lib, ... }:
     let
       cfg = config.services.jobo_bot;
     in
@@ -59,7 +59,7 @@
         };
       };
       config = lib.mkIf cfg.enable {
-        environment.systemPackages = with pkgs; [ jobo_bot ];
+        environment.systemPackages = [ jobo_bot ];
         services.cron = {
           enable = true;
           systemCronJobs = let
@@ -67,7 +67,7 @@
             conf = "--conf ${cfg.configFile}";
             prod = if cfg.prod then "--prod" else "";
           in [
-            ''*/${freq} * * * *  root .  /etc/profile; ${pkgs.jobo_bot}/bin/jobo_bot ${conf} ${prod}''
+            ''*/${freq} * * * *  root .  /etc/profile; ${jobo_bot}/bin/jobo_bot ${conf} ${prod}''
           ];
         };
       };
