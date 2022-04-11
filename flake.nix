@@ -82,7 +82,7 @@
     });
 
     overlay = final: prev: {
-      jobo_bot = final.callPackage jobo_bot;
+      jobo_bot = final.callPackage jobo_bot {};
     };
   };
 }
