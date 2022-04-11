@@ -36,6 +36,42 @@
 
     defaultPackage = forAllSystems (system: packages.${system}.jobo_bot);
 
+    nixosModule = { config, lib, pkgs, ... }:
+    let
+      cfg = config.services.jobo_bot;
+    in
+    {
+      options.services.jobo_bot = with lib;{
+        enable = mkEnableOption "jobo_bot service";
+        frequency = mkOption {
+          type = types.int;
+          default = 30;
+          description = "frequency of cron job in minutes.";
+        };
+        prod = mkOption {
+          type = types.bool;
+          default = false;
+          description = "enable production mode";
+        };
+        configFile = mkOption {
+          type = types.path;
+          description = "path of jobo_bot.json config file."; 
+        };
+      };
+      config = lib.mkIf cfg.enable {
+        environment.systemPackages = with pkgs; [ jobo_bot ];
+        services.cron = {
+          enable = true;
+          systemCronJobs = [
+            ''*/${lib.strings.floatToString cfg.frequency} * * * *  root .  /etc/profile;\
+              ${pkgs.jobo_bot}/bin/jobo_bot\
+              --conf ${cfg.configFile}\
+              ${if cfg.prod then "--prod" else ""}''
+          ];
+        };
+      };
+    };
+
     devShell = forAllSystems (system: nixpkgs.legacyPackages.${system}.mkShell {
       nativeBuildInputs = with nixpkgs.legacyPackages.${system};
         requirements python38Packages ++ [ jq fx ];
