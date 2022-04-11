@@ -62,11 +62,12 @@
         environment.systemPackages = with pkgs; [ jobo_bot ];
         services.cron = {
           enable = true;
-          systemCronJobs = [
-            ''*/${lib.strings.floatToString cfg.frequency} * * * *  root .  /etc/profile;\
-              ${pkgs.jobo_bot}/bin/jobo_bot\
-              --conf ${cfg.configFile}\
-              ${if cfg.prod then "--prod" else ""}''
+          systemCronJobs = let
+            freq = lib.strings.floatToString cfg.frequency;
+            conf = "--conf ${cfg.configFile}";
+            prod = if cfg.prod then "--prod" else "";
+          in [
+            ''*/${freq} * * * *  root .  /etc/profile; ${pkgs.jobo_bot}/bin/jobo_bot ${conf} ${prod}''
           ];
         };
       };
