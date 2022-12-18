@@ -8,20 +8,20 @@
     supportedSystems = [ "aarch64-linux" "aarch64-darwin" "i686-linux" "x86_64-darwin" "x86_64-linux" ];
     forAllSystems = f: nixpkgs.lib.genAttrs supportedSystems (system: f system);
 
-    requirements = python38Packages: with python38Packages; [
+    requirements = python310Packages: with python310Packages; [
         requests
         beautifulsoup4
         python-telegram-bot
         sqlalchemy
     ];
 
-    jobo_bot = {lib, python38Packages}: python38Packages.buildPythonPackage rec {
+    jobo_bot = {lib, python310Packages}: python310Packages.buildPythonPackage rec {
       pname = "jobo_bot";
       version = "1.2.0";
 
       src = ./.;
 
-      propagatedBuildInputs = requirements python38Packages;
+      propagatedBuildInputs = requirements python310Packages;
 
       meta = {
         homepage = "https://github.com/haztecaso/jobo_bot";
@@ -76,7 +76,7 @@
 
     devShell = forAllSystems (system: nixpkgs.legacyPackages.${system}.mkShell {
       nativeBuildInputs = with nixpkgs.legacyPackages.${system};
-        requirements python38Packages ++ [ jq fx ];
+        requirements python310Packages ++ [ jq fx ];
       shellHook = ''
         alias jobo_bot_="python jobo_bot"
       '';
